@@ -1,17 +1,18 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UnliftedDatatypes #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE UnliftedDatatypes   #-}
 module Effectful.Unix
   (Unix
   , runUnix
   , createLink
   , fileID
+  , fileIDRaw
   , fileSize
   , getDirectoryContents
   , isDirectory
@@ -20,17 +21,24 @@ module Effectful.Unix
   , FileID
   , FileOffset)
 where
-import Effectful (Effect, Eff, (:>), IOE, liftIO)
-import System.Posix.Types (FileID, FileOffset)
-import Effectful.Dispatch.Dynamic (interpret)
-import qualified System.Directory as D (getDirectoryContents, listDirectory)
-import System.Posix.Files (getFileStatus)
-import qualified System.Posix.Files as P (isDirectory, fileID, fileSize, createLink, removeLink)
-import Effectful.TH (makeEffect)
+import           Effectful                        (Eff, Effect, IOE, liftIO,
+                                                   (:>))
+import           Effectful.Dispatch.Dynamic       (interpret)
+import           Effectful.TH                     (makeEffect)
+import qualified System.Directory                 as D (getDirectoryContents,
+                                                        listDirectory)
+import qualified System.Posix.ByteString          as B (getFileStatus)
+import           System.Posix.ByteString.FilePath (RawFilePath)
+import qualified System.Posix.Files               as P (createLink, fileID,
+                                                        fileSize, isDirectory,
+                                                        removeLink)
+import           System.Posix.Files               (getFileStatus)
+import           System.Posix.Types               (FileID, FileOffset)
 
 data Unix :: Effect where
   CreateLink :: FilePath -> FilePath -> Unix m ()
   FileID :: FilePath -> Unix m FileID
+  FileIDRaw :: RawFilePath -> Unix m FileID
   FileSize :: FilePath -> Unix m FileOffset
   GetDirectoryContents :: FilePath -> Unix m [FilePath]
   IsDirectory :: FilePath -> Unix m Bool
@@ -40,9 +48,10 @@ data Unix :: Effect where
 makeEffect ''Unix
 
 runUnix :: IOE :> es => Eff (Unix : es) a -> Eff es a
-runUnix = interpret $ \_ -> \case 
+runUnix = interpret $ \_ -> \case
                                 CreateLink path1 path2 -> liftIO $ P.createLink path1 path2
                                 FileID path -> liftIO $ P.fileID <$> getFileStatus path
+                                FileIDRaw rawPath -> liftIO $ P.fileID <$> B.getFileStatus rawPath
                                 FileSize path -> liftIO $ P.fileSize <$> getFileStatus path
                                 GetDirectoryContents path -> liftIO $ D.getDirectoryContents path
                                 IsDirectory path -> liftIO $ P.isDirectory <$> getFileStatus path
