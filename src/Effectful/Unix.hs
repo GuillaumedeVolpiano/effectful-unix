@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE UnliftedDatatypes   #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Effectful.Unix
   (Unix
   , runUnix
@@ -21,6 +22,7 @@ module Effectful.Unix
   , FileID
   , FileOffset)
 where
+import           Data.Hashable                    (Hashable (hashWithSalt))
 import           Effectful                        (Eff, Effect, IOE, liftIO,
                                                    (:>))
 import           Effectful.Dispatch.Dynamic       (interpret)
@@ -33,7 +35,8 @@ import qualified System.Posix.Files               as P (createLink, fileID,
                                                         fileSize, isDirectory,
                                                         removeLink)
 import           System.Posix.Files               (getFileStatus)
-import           System.Posix.Types               (FileID, FileOffset)
+import           System.Posix.Types               (CIno (CIno),
+                                                   FileOffset, FileID)
 
 data Unix :: Effect where
   CreateLink :: FilePath -> FilePath -> Unix m ()
@@ -46,6 +49,9 @@ data Unix :: Effect where
   RemoveLink :: FilePath -> Unix m ()
 
 makeEffect ''Unix
+
+instance Hashable CIno where
+  hashWithSalt v (CIno x) = hashWithSalt v x
 
 runUnix :: IOE :> es => Eff (Unix : es) a -> Eff es a
 runUnix = interpret $ \_ -> \case
